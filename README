@@ -1,0 +1,22 @@
+
+Fonctionnement du logiciel
+
+Démarrage
+si EEPROM Vide :
+Lancement en version Access Point
+Mise en place serveur Web
+pour completer eeprom data
+
+Si eeprom complété
+Connection au réseau WiFi
+Si pas de connection -> Clignotement / Lancement serveur Web en Access Point
+Si Connection -> demarrage du serveur http/rtsp
+
+Appui Bouton
+Lancement Web pour 5 minutes
+
+Double Appui
+Lancement OTA pour 5 minutes
+
+Appui long
+Initialisation eeprom + Redemarrage
