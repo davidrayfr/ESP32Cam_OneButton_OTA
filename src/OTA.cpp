@@ -4,7 +4,7 @@
 
 void confOTA(char *hostname,char *ota_password){
   // Port defaults to 8266
-  ArduinoOTA.setPort(8266);
+  ArduinoOTA.setPort(3232);
 
   // Set Hostname
   ArduinoOTA.setHostname(hostname);

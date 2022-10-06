@@ -16,7 +16,8 @@ Appui Bouton
 Lancement Web pour 5 minutes
 
 Double Appui
-Lancement OTA pour 5 minutes
+Lancement OTA pour 1 minutes
+Arrêt du serveur Web
 
 Appui long
 Initialisation eeprom + Redemarrage
