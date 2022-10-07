@@ -1,23 +1,38 @@
+Sofware Function
 
-Fonctionnement du logiciel
+At Start
+If EEPROM Empty
+Launch Access point
+Launch Web Server for configuration
 
-Démarrage
-si EEPROM Vide :
-Lancement en version Access Point
-Mise en place serveur Web
-pour completer eeprom data
+If EEPROM FULL
+WiFi COnnection
+If no COnnection -> Clignotement / Lancement serveur Web en Access Point for configuration
 
-Si eeprom complété
-Connection au réseau WiFi
-Si pas de connection -> Clignotement / Lancement serveur Web en Access Point
 Si Connection -> demarrage du serveur http/rtsp
 
 Appui Bouton
+Arret rtsp
+Arret Http
 Lancement Web pour 5 minutes
 
-Double Appui
-Lancement OTA pour 1 minutes
-Arrêt du serveur Web
+Web
+reset Button + Confirmation
+Choose Wifi
 
-Appui long
+
+Double Click
+Lancement OTA pour 1 minutes
+Arrêt du serveur Web (Check if works before)
+
+Long Push
+After 5 secondes
+Blink during 5 secondes
+Second push confirm Reset
+
 Initialisation eeprom + Redemarrage
+
+Web Serveur
+Choose Access-point / Wifi Connection
+Http Serveur / RTSP Stream
+

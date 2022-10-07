@@ -8,8 +8,7 @@
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <EEPROM.h>
-#include <wifikeys.h>
-#include "eeprom_Sauv.h"
+#include <WebServer.h>
 #include "OTA.h"
 #include <WebServer.h>
 #include <WiFiClient.h>
@@ -17,24 +16,18 @@
 #include "SimStreamer.h"
 #include "OV2640Streamer.h"
 #include "CRtspSession.h"
+#include "eeprom_Sauv.h"
+#include "datakeys.h"
 
-unsigned long previousMillis;
-
-EEPROM_Data (memory){STRUCT_MAGIC,
-                    "MaisonRay300",
-                    "CamilleEmilie",
-                    "123456",
-                    "Esp32Cam",
-                    true,
-                    true,
-                    554
-                    };
+EEPROM_Data memory;
 
 OV2640 cam;
 
 WebServer server(80);
 
-//WiFiServer rtspServer(554);
+WiFiServer rtspServer(554);
+
+int64_t previousMillis;
 
 void handle_jpg_stream(void)
 {
@@ -88,17 +81,62 @@ void handleNotFound()
     server.send(200, "text/plain", message);
 }
 
-IPAddress ip;
+void handleRoot()
+{
+String message="<!DOCTYPE html>";
+message +="<html lang='f'>";
+message +="        <head>";
+message +="        <title>CONFIGURATION ESP32-CAM</title>";
+message +="        <meta http-equiv='refresh' content='60' name='viewport' content='width=device-width, initial-scale=1' charset='UTF-8'/>";
+message +="    </head>";
+message +="    <body lang='fr'>";
+message +="        <h1>Affichage de la configuration</h1>";
+message = message + "        <p>WiFi : "+memory.ssid+"</p>";
+message = message + "<p>password : "+memory.password+"</p>";
+message = message + "        <p>Hostname : "+memory.hostname+"</p>";
+message = message + "        <p>http : "+memory.http_enable+"</p>";
+message = message + "        <p>rtsp : "+memory.rtsp_enable+"</p>";
+message = message + "        <p>rtsp port : "+memory.rtsp_port+"</p>";
+message = message + "    </body>";
+message = message + "   </html>";
+server.send(200,"text/html",message);
+}
+ 
+void http_Config_Portal()
+{
+  server.on("/",handleRoot);
+  server.onNotFound(handleNotFound);  
+}
 
 CStreamer *streamer;
 CRtspSession *session;
 WiFiClient client; // FIXME, support multiple clients
 
+void http_Stream_Server()
+{
+  server.on("/", HTTP_GET, handle_jpg_stream);
+  server.on("/jpg", HTTP_GET, handle_jpg);
+  server.onNotFound(handleNotFound);
+  server.begin();
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.println("Booting");
-  Serial.println("Start after OTA Update");
+  Serial.println("Start ESP32CAM prgm");
+  
+  //Camera initialisation
   cam.init(esp32cam_aithinker_config);
+  
+  // EEPROM Loading
+  if (loadEEPROM(memory)) {
+  Serial.println("EEPROM Load done");
+  }
+  else
+  {
+  Serial.println("EEPROM Empty");
+  }
+
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   while (WiFi.waitForConnectResult() != WL_CONNECTED) {
@@ -106,37 +144,37 @@ void setup() {
     delay(5000);
     ESP.restart();
     }
-
   Serial.println("Ready");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
   Serial.println(F("WiFi connected"));
   Serial.print("Adresse MAC :");
   Serial.println(WiFi.macAddress());
-    /*use mdns for host name resolution*/
+  /*use mdns for host name resolution*/
   if (!MDNS.begin(memory.hostname)) { //http://esp32.local
     Serial.println("Error setting up MDNS responder!");
     while (1) {
       delay(1000);
+      }
     }
-  }
   Serial.println("mDNS responder started");
   
   confOTA(memory.hostname,memory.ota_password);
 
-  server.on("/", HTTP_GET, handle_jpg_stream);
-  server.on("/jpg", HTTP_GET, handle_jpg);
-  server.onNotFound(handleNotFound);
-  server.begin();
- 
-  //rtspServer.begin();
+// Server Start
+
+// Start in http Stream
+if (memory.http_enable) http_Stream_Server();
+
+// Start in config Portal
+
+// Start rtspServer
+if (memory.rtsp_enable) rtspServer.begin();
 }
 
-void loop() {
-  ArduinoOTA.handle();
-  server.handleClient();
-/*
-    // Max Frame
+void rtsp_Stream_Server()
+{
+// Max Frame
     uint32_t msecPerFrame = 100;
     static uint32_t lastimage = millis();
 
@@ -171,5 +209,11 @@ void loop() {
             streamer = new OV2640Streamer(&client, cam);             // our streamer for UDP/TCP based RTP transport
             session = new CRtspSession(&client, streamer); // our threads RTSP session and state
         }
-    } */
+    }
+}
+
+void loop() {
+  ArduinoOTA.handle();
+  server.handleClient();
+  rtsp_Stream_Server();
 }
