@@ -1,16 +1,13 @@
-//test
-
-// Library One Button
-// test avec ESP-32 CAM
 // Bouton sur GPIO 12
 // Allumage diode blanche
-// Check 1 clic -> On allume la Led Blanche
+// Check 1 clic -> start web - configuration portal - pulsation white led
+// second clic - stop portal
+
 // Check 2 clic -> Pulsation Led Blanche
-// Check Long Clic -Clignotement Led Rouge et Blanche
+// Check Long Clic -> white led clignotement - wait single clic during 5 seconds
 // Lorsque que l'on appui sur le bouton > annule les clignotements et eteint la lampe
 // Ajout Variation Led
 
-#include <Arduino.h>
 #include "OneButton.h"
 
 #define RED_LED_PIN 33 // LED rouge: GPIO 33
