@@ -214,6 +214,7 @@ void rtsp_Stream_Server()
 
 void loop() {
   ArduinoOTA.handle();
+  button.tick();
   server.handleClient();
   rtsp_Stream_Server();
 }
