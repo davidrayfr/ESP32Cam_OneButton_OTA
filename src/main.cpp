@@ -19,6 +19,8 @@
 #include "eeprom_Sauv.h"
 #include "datakeys.h"
 
+#define TIME_CONFIG_PORTAL 60 // Time of Portal config open (second)
+
 EEPROM_Data memory;
 
 OV2640 cam;
@@ -160,6 +162,33 @@ void setup() {
   Serial.println("mDNS responder started");
   
   confOTA(memory.hostname,memory.ota_password);
+
+// Configuration LED
+  ledcSetup(canalPWM, 5000, 12); // canal = 7, frequence = 5000 Hz, resolution = 12 bits
+  
+  // enable the standard led on pin 13.
+  ledcAttachPin(WHITE_LED_PIN, 7); // Signal PWM broche 4, canal 7.
+    
+  //pinMode(WHITE_LED_PIN, OUTPUT); // sets the digital pin as output
+  pinMode(RED_LED_PIN, OUTPUT); // sets the digital pin as output
+     
+  // Initiate Led
+  //digitalWrite(WHITE_LED_PIN, HIGH);
+  ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%)
+  digitalWrite(RED_LED_PIN, HIGH);
+
+// COnfiguration Bouton
+    // link the doubleclick function to be called on a doubleclick event.
+    button.attachDoubleClick(doubleClick);
+    button.attachClick(simpleClick);
+    button.setPressTicks(TIME_LONG_CLICK_START); // that is the time when LongPressStart is called
+    button.attachLongPressStart(pressStart);
+    button.attachLongPressStop(pressStop);
+
+    // initialisation Od timer interrupt
+    My_timer=timerBegin(0,80,true);
+    timerAttachInterrupt(My_timer,&onTimer,true);
+    timerAlarmWrite(My_timer,TIME_BLINK*1000,true);
 
 // Server Start
 

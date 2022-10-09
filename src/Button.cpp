@@ -15,6 +15,7 @@
 #define BUTTON_PIN 12 // Bouton Branché sur GPIO 12
 #define TIME_LONG_CLICK_DETECTION 5000 // Detection Tps Mini long clic in Millisecondes
 #define TIME_LONG_CLICK_START 1000 // Detection start Long Click
+#define TIME_AFTER_LONG_CLICK 2000 // Detection second click after long clic
 #define TIME_BLINK 100 // Time - Frequency blink for Led in MilliSecond
 #define canalPWM 7 // un canal PWM disponible
 #define MAX_PWM 128 // Intensity Max Led
@@ -35,9 +36,9 @@ unsigned long pressStartTime;
 int ledBright=0;
 
 // Declaration indavance
-void whiteLedChange();
-void redLedChange();
-void whiteLedEvolution();
+void whiteLedBlink();
+void redLedBlink();
+void whiteLedPulse();
 
 void IRAM_ATTR checkTicks() {
   // include all buttons here to be checked
@@ -48,16 +49,15 @@ void IRAM_ATTR onTimer() {
   // include all buttons here to be checked
   if (longClickId)
   {
-      whiteLedChange();
-      redLedChange();
+      whiteLedBlink();
   }
   else
   {
-     whiteLedEvolution();
+     whiteLedPulse();
   }  
 }
 
-void whiteLedEvolution()
+void whiteLedPulse()
 {
     //digitalWrite(WHITE_LED_PIN, !digitalRead(WHITE_LED_PIN));
   //ledcWrite(canalPWM, 5+((ledBright*10)%250));   //  LED blanche allumée (rapport cyclique 0,1%!)
@@ -67,7 +67,7 @@ void whiteLedEvolution()
   ledBright++;
   }
 
-void whiteLedChange()
+void whiteLedBlink()
 {
     if (ledcRead(canalPWM)==0) {
               ledcWrite(canalPWM, MAX_PWM);   //  LED blanche éteinte (rapport cyclique 0%)
@@ -77,7 +77,7 @@ void whiteLedChange()
     }
 }
 
-void redLedChange()
+void redLedBlink()
 {
     digitalWrite(RED_LED_PIN, !digitalRead(RED_LED_PIN));
 }
@@ -92,15 +92,16 @@ timerAlarmEnable(My_timer);
 void simpleClick()
 {
 Serial.println("Simple Click detected");
+// Verificaton si clic after long clic
+
 if (timerAlarmEnabled(My_timer)) {
   timerAlarmDisable(My_timer);
   longClickId=false;
-  digitalWrite(RED_LED_PIN, HIGH);
   ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%)
   }
   else
   {
-  whiteLedChange();
+  whiteLedBlink();
   }
 }
 
@@ -135,34 +136,9 @@ void pressStop() {
     }
   } // pressStop()
 
-void setup()
+// This function start after long press following by short clic
+
+void button_reset()
 {
-    Serial.begin(115200);
-    Serial.println("One Button Example with ESP-32 Cam");
- // PWM pour LED Blanche
-    ledcSetup(canalPWM, 5000, 12); // canal = 7, frequence = 5000 Hz, resolution = 12 bits
-  
-    // enable the standard led on pin 13.
-    ledcAttachPin(WHITE_LED_PIN, 7); // Signal PWM broche 4, canal 7.
-    
-    //pinMode(WHITE_LED_PIN, OUTPUT); // sets the digital pin as output
-    pinMode(RED_LED_PIN, OUTPUT); // sets the digital pin as output
-     
-    // Initiate Led
-    //digitalWrite(WHITE_LED_PIN, HIGH);
-    ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%)
 
-    digitalWrite(RED_LED_PIN, HIGH);
-
-    // link the doubleclick function to be called on a doubleclick event.
-    button.attachDoubleClick(doubleClick);
-    button.attachClick(simpleClick);
-    button.setPressTicks(TIME_LONG_CLICK_START); // that is the time when LongPressStart is called
-    button.attachLongPressStart(pressStart);
-    button.attachLongPressStop(pressStop);
-
-    // initialisation Od timer interrupt
-    My_timer=timerBegin(0,80,true);
-    timerAttachInterrupt(My_timer,&onTimer,true);
-    timerAlarmWrite(My_timer,TIME_BLINK*1000,true);
 }
