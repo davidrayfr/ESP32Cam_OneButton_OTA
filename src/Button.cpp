@@ -31,6 +31,7 @@ hw_timer_t *My_timer=NULL;
 // current LED state, staring with LOW (0)
 
 int longClickId = false;
+int pulseFlag=false; // pulseFlag=flase -> Blink pulseFlag= True
 int whiteLedStatus = false;
 unsigned long pressStartTime;
 int ledBright=0;
@@ -47,7 +48,7 @@ void IRAM_ATTR checkTicks() {
 
 void IRAM_ATTR onTimer() {
   // include all buttons here to be checked
-  if (longClickId)
+  if (pulseFlag)
   {
       whiteLedBlink();
   }
@@ -96,8 +97,11 @@ Serial.println("Simple Click detected");
 
 if (timerAlarmEnabled(My_timer)) {
   timerAlarmDisable(My_timer);
+  //Simple Clic
   longClickId=false;
-  ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%)
+  pulseFlag=true;
+  //ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%)
+  //whiteLedPulse();
   }
   else
   {

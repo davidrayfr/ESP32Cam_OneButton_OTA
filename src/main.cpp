@@ -107,7 +107,9 @@ server.send(200,"text/html",message);
 void http_Config_Portal()
 {
   server.on("/",handleRoot);
-  server.onNotFound(handleNotFound);  
+  server.onNotFound(handleNotFound);
+  server.begin();
+  Serial.println("Serveur web actif!");
 }
 
 CStreamer *streamer;
@@ -175,7 +177,7 @@ void setup() {
   // Initiate Led
   //digitalWrite(WHITE_LED_PIN, HIGH);
   ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%)
-  digitalWrite(RED_LED_PIN, HIGH);
+  digitalWrite(RED_LED_PIN, HIGH); // LED Rouge Etainte
 
 // COnfiguration Bouton
     // link the doubleclick function to be called on a doubleclick event.
