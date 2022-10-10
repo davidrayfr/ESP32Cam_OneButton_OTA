@@ -18,8 +18,40 @@
 #include "CRtspSession.h"
 #include "eeprom_Sauv.h"
 #include "datakeys.h"
+#include "OneButton.h"
 
-#define TIME_CONFIG_PORTAL 60 // Time of Portal config open (second)
+#define TIME_CONFIG_PORTAL 60000 // Time of Portal config open (in millisecond)
+
+// Data regarding LED
+#define RED_LED_PIN 33 // LED rouge: GPIO 33
+#define WHITE_LED_PIN 4 // LED blanche: GPIO 4 - ESP32 CAM
+#define BUTTON_PIN 12 // Bouton Branché sur GPIO 12
+#define canalPWM 7 // un canal PWM disponible
+#define MAX_PWM 128 // Intensity Max Led
+int ledBright=0;
+
+// Data Regarding Button Management
+#define TIME_LONG_CLICK_DETECTION 5000 // Detection Tps Mini long clic in Millisecondes
+#define TIME_LONG_CLICK_START 1000 // Detection start Long Click
+#define TIME_AFTER_LONG_CLICK 2000 // Detection second click after long clic
+#define TIME_BLINK 100 // Time - Frequency blink for Led in MilliSecond
+
+const int AMPLITUDE_MAX_LED=255; // Amplitude Max LED 
+const int COEF=10;
+
+int longClickId = false;
+int pulseFlag=false; // pulseFlag=flase -> Blink pulseFlag= True
+int whiteLedStatus = false;
+unsigned long pressStartTime;
+bool http_Config_Portal_activ=false;
+
+// declaration in advance
+void http_Config_Portal();
+
+// Setup a new OneButton on pin PIN_INPUT
+// The 2. parameter activeLOW is true, because external wiring sets the button to LOW when pressed.
+OneButton button(BUTTON_PIN, true,true);
+hw_timer_t *My_timer=NULL;
 
 EEPROM_Data memory;
 
@@ -29,7 +61,119 @@ WebServer server(80);
 
 WiFiServer rtspServer(554);
 
-int64_t previousMillis;
+int64_t previousMillis=0;
+
+// Variables for PRGM
+
+void whiteLedPulse()
+{
+    //digitalWrite(WHITE_LED_PIN, !digitalRead(WHITE_LED_PIN));
+  //ledcWrite(canalPWM, 5+((ledBright*10)%250));   //  LED blanche allumée (rapport cyclique 0,1%!)
+  int j=ledBright*COEF;
+  // Variation Led Blanche
+  ledcWrite(canalPWM,((j/AMPLITUDE_MAX_LED)%2)*(AMPLITUDE_MAX_LED-j%AMPLITUDE_MAX_LED)+(((AMPLITUDE_MAX_LED+j)/AMPLITUDE_MAX_LED)%2)*(j%AMPLITUDE_MAX_LED));
+  ledBright++;
+  }
+
+void whiteLedBlink()
+{
+    if (ledcRead(canalPWM)==0) {
+              ledcWrite(canalPWM, MAX_PWM);   //  LED blanche éteinte (rapport cyclique 0%)
+    }
+    else {
+    ledcWrite(canalPWM, 0);
+    }
+}
+
+void redLedBlink()
+{
+    digitalWrite(RED_LED_PIN, !digitalRead(RED_LED_PIN));
+}
+
+void IRAM_ATTR checkTicks() {
+  // include all buttons here to be checked
+  button.tick(); // just call tick() to check the state.
+}
+
+void IRAM_ATTR onTimer() {
+  // include all buttons here to be checked
+  if (pulseFlag)
+  {
+      whiteLedPulse();
+  }
+  else
+  {
+     whiteLedBlink();
+  }  
+}
+
+void doubleClick()
+{
+Serial.println("Double Click detected > Clignotement LED BLANCHE");
+// Blink launch
+pulseFlag=false;
+timerAlarmEnable(My_timer);
+}
+
+void simpleClick()
+{
+Serial.println("Simple Click detected");
+// Verificaton si clic after long clic
+
+/*if (timerStarted(My_timer)) {
+  timerAlarmDisable(My_timer);
+  //Simple Clic
+  longClickId=false;
+  //ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%)
+  //whiteLedPulse();
+  }
+  else*/
+  {
+  timerAlarmEnable(My_timer);
+  pulseFlag=true;
+  http_Config_Portal();
+  previousMillis=millis();
+  }
+}
+
+
+void longClick()
+{
+Serial.println("Long Click");
+longClickId=true;
+timerAlarmEnable(My_timer);
+}
+
+// this function will be called when the button was held down for 1 second or more.
+void pressStart() {
+  Serial.println("pressStart()");
+  if (timerAlarmEnabled(My_timer)) {
+    timerAlarmDisable(My_timer);
+    longClickId=false;
+    digitalWrite(RED_LED_PIN, HIGH);
+    ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%)
+  }
+  pressStartTime = millis() - TIME_LONG_CLICK_START; // as set in setPressTicks()
+} // pressStart()
+
+// this function will be called when the button was released after a long hold.
+void pressStop() {
+  Serial.print("pressStop(");
+  Serial.print(millis() - pressStartTime);
+  Serial.println(") detected.");
+  if ((millis() - pressStartTime)>TIME_LONG_CLICK_DETECTION)
+    {
+      Serial.println("long hold detected");
+      longClick();
+    }
+  } // pressStop()
+
+// This function start after long press following by short clic
+
+void button_reset()
+{
+
+}
 
 void handle_jpg_stream(void)
 {
@@ -85,22 +229,25 @@ void handleNotFound()
 
 void handleRoot()
 {
+char valeur[20];
+itoa((millis()-previousMillis),valeur,10);
 String message="<!DOCTYPE html>";
 message +="<html lang='f'>";
-message +="        <head>";
-message +="        <title>CONFIGURATION ESP32-CAM</title>";
-message +="        <meta http-equiv='refresh' content='60' name='viewport' content='width=device-width, initial-scale=1' charset='UTF-8'/>";
-message +="    </head>";
-message +="    <body lang='fr'>";
-message +="        <h1>Affichage de la configuration</h1>";
-message = message + "        <p>WiFi : "+memory.ssid+"</p>";
+message +="<head>";
+message +="<title>CONFIGURATION ESP32-CAM</title>";
+message +="<meta http-equiv='refresh' content='60' name='viewport' content='width=device-width, initial-scale=1' charset='UTF-8'/>";
+message +="</head>";
+message +="<body lang='fr'>";
+message +="<h1>Affichage de la configuration</h1>";
+message = message + "<p>WiFi : "+memory.ssid+"</p>";
 message = message + "<p>password : "+memory.password+"</p>";
-message = message + "        <p>Hostname : "+memory.hostname+"</p>";
-message = message + "        <p>http : "+memory.http_enable+"</p>";
-message = message + "        <p>rtsp : "+memory.rtsp_enable+"</p>";
-message = message + "        <p>rtsp port : "+memory.rtsp_port+"</p>";
-message = message + "    </body>";
-message = message + "   </html>";
+message = message + "<p>Hostname : "+memory.hostname+"</p>";
+message = message + "<p>http : "+memory.http_enable+"</p>";
+message = message + "<p>rtsp : "+memory.rtsp_enable+"</p>";
+message = message + "<p>rtsp port : "+memory.rtsp_port+"</p>";
+message = message + "<p>time before restart (seconds) : "+valeur+"</p>";
+message = message + "</body>";
+message = message + "</html>";
 server.send(200,"text/html",message);
 }
  
@@ -110,6 +257,8 @@ void http_Config_Portal()
   server.onNotFound(handleNotFound);
   server.begin();
   Serial.println("Serveur web actif!");
+  previousMillis=millis();
+  http_Config_Portal_activ=true;
 }
 
 CStreamer *streamer;
@@ -134,12 +283,13 @@ void setup() {
   
   // EEPROM Loading
   if (loadEEPROM(memory)) {
-  Serial.println("EEPROM Load done");
-  }
+    Serial.println("EEPROM Load done");
+    }
   else
-  {
-  Serial.println("EEPROM Empty");
-  }
+    {
+    Serial.println("EEPROM Empty");
+    memory=INITIAL_VALUE;
+    }
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -161,22 +311,26 @@ void setup() {
       delay(1000);
       }
     }
-  Serial.println("mDNS responder started");
-  
+  Serial.print("mDNS responder started with");
+  Serial.println(memory.hostname);
   confOTA(memory.hostname,memory.ota_password);
 
-// Configuration LED
+  // Configuration LED
+   Serial.println("ledcSetup(canalPWM, 5000, 12)");
   ledcSetup(canalPWM, 5000, 12); // canal = 7, frequence = 5000 Hz, resolution = 12 bits
   
   // enable the standard led on pin 13.
+   Serial.println("ledcAttachPin(WHITE_LED_PIN, 7)");
   ledcAttachPin(WHITE_LED_PIN, 7); // Signal PWM broche 4, canal 7.
-    
+  ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%) 
+  
   //pinMode(WHITE_LED_PIN, OUTPUT); // sets the digital pin as output
+   Serial.println("pinMode(RED_LED_PIN, OUTPUT)");
   pinMode(RED_LED_PIN, OUTPUT); // sets the digital pin as output
      
   // Initiate Led
   //digitalWrite(WHITE_LED_PIN, HIGH);
-  ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%)
+  Serial.println("Allumage LED RED");
   digitalWrite(RED_LED_PIN, HIGH); // LED Rouge Etainte
 
 // COnfiguration Bouton
@@ -186,11 +340,13 @@ void setup() {
     button.setPressTicks(TIME_LONG_CLICK_START); // that is the time when LongPressStart is called
     button.attachLongPressStart(pressStart);
     button.attachLongPressStop(pressStop);
+    Serial.println("fin configuration Bouton");
 
     // initialisation Od timer interrupt
     My_timer=timerBegin(0,80,true);
     timerAttachInterrupt(My_timer,&onTimer,true);
     timerAlarmWrite(My_timer,TIME_BLINK*1000,true);
+Serial.println("fin configuration Timer");
 
 // Server Start
 
@@ -244,8 +400,14 @@ void rtsp_Stream_Server()
 }
 
 void loop() {
-  ArduinoOTA.handle();
+  //ArduinoOTA.handle();
   button.tick();
   server.handleClient();
-  rtsp_Stream_Server();
+  if (((previousMillis+TIME_CONFIG_PORTAL)<millis()) and (http_Config_Portal_activ))
+    {
+      Serial.println("time ended, ESP32 Restart");
+      delay(2000);
+      ESP.restart();
+    }
+  //rtsp_Stream_Server();
 }

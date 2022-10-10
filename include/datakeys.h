@@ -10,7 +10,7 @@ const EEPROM_Data (INITIAL_VALUE){
                     "CamilleEmilie",
                     "123456",
                     "Esp32Cam",
-                    true,
+                    false,
                     false,
                     554
                 };
