@@ -32,8 +32,8 @@ int ledBright=0;
 
 // Data Regarding Button Management
 #define TIME_LONG_CLICK_DETECTION 5000 // Detection Tps Mini long clic in Millisecondes
-#define TIME_LONG_CLICK_START 1000 // Detection start Long Click
-#define TIME_AFTER_LONG_CLICK 2000 // Detection second click after long clic
+#define TIME_LONG_CLICK_START 1000 // Detection start Long Click (seconds)
+#define TIME_AFTER_LONG_CLICK 2000 // Detection second click after long clic (seconds)
 #define TIME_BLINK 100 // Time - Frequency blink for Led in MilliSecond
 
 const int AMPLITUDE_MAX_LED=255; // Amplitude Max LED 
@@ -64,6 +64,13 @@ WiFiServer rtspServer(554);
 int64_t previousMillis=0;
 
 // Variables for PRGM
+
+void reset_EEPROM()
+{
+  Serial.println("Reset EEPROM / Restart ESP32");
+  delay(1000);
+  ESP.restart();
+}
 
 void whiteLedPulse()
 {
@@ -120,28 +127,39 @@ void simpleClick()
 Serial.println("Simple Click detected");
 // Verificaton si clic after long clic
 
-/*if (timerStarted(My_timer)) {
-  timerAlarmDisable(My_timer);
-  //Simple Clic
-  longClickId=false;
-  //ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%)
-  //whiteLedPulse();
+if (longClickId) {
+  if (millis()-previousMillis<TIME_AFTER_LONG_CLICK){
+    reset_EEPROM();
+    }
+  else{
+    longClickId=false;
+    timerAlarmDisable(My_timer);
+    ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%)
+    }
   }
-  else*/
+ else
   {
+  // Lancement du portail
   timerAlarmEnable(My_timer);
   pulseFlag=true;
   http_Config_Portal();
+  // Record time launch
   previousMillis=millis();
   }
 }
 
-
+// Long press detected
+// Wait Second short clic to start in the TIME
+// LED Blink
 void longClick()
 {
 Serial.println("Long Click");
 longClickId=true;
+pulseFlag=false;
 timerAlarmEnable(My_timer);
+//Wait second clic during TIME_AFTER_LONG_CLICK
+previousMillis=millis();
+http_Config_Portal_activ=false;
 }
 
 // this function will be called when the button was held down for 1 second or more.
@@ -163,7 +181,7 @@ void pressStop() {
   Serial.println(") detected.");
   if ((millis() - pressStartTime)>TIME_LONG_CLICK_DETECTION)
     {
-      Serial.println("long hold detected");
+      Serial.println("long hold detected / More than TIME_LONG_CLICK_START");
       longClick();
     }
   } // pressStop()
@@ -174,6 +192,7 @@ void button_reset()
 {
 
 }
+
 
 void handle_jpg_stream(void)
 {
@@ -227,34 +246,56 @@ void handleNotFound()
     server.send(200, "text/plain", message);
 }
 
+// HTML Launch for Restart
+void handleRESTART()
+{
+  Serial.println("Reset EEPROM / Restart ESP32");
+  delay(1000);
+  ESP.restart();
+}
+
+// HTML Launch for EEPROM Save
+void handleSAVE()
+{
+  Serial.println("Save EEPROM / Restart ESP32");
+  delay(1000);
+  ESP.restart();
+}
+
 void handleRoot()
 {
 char valeur[20];
 itoa((millis()-previousMillis),valeur,10);
 String message="<!DOCTYPE html>";
 message +="<html lang='f'>";
-message +="<head>";
-message +="<title>CONFIGURATION ESP32-CAM</title>";
-message +="<meta http-equiv='refresh' content='60' name='viewport' content='width=device-width, initial-scale=1' charset='UTF-8'/>";
-message +="</head>";
-message +="<body lang='fr'>";
-message +="<h1>Affichage de la configuration</h1>";
+message +="<head>\n";
+message +="<title>CONFIGURATION ESP32-CAM</title>\n";
+message +="<meta http-equiv='refresh' content='60' name='viewport' content='width=device-width, initial-scale=1' charset='UTF-8'/>\n";
+message +="</head>\n";
+message +="<body lang='fr'>\n";
+message +="<h1>Configuration ESP32-CAM</h1>\n";
+message +="<h3> Access Point\n";
 message = message + "<p>WiFi : "+memory.ssid+"</p>";
-message = message + "<p>password : "+memory.password+"</p>";
-message = message + "<p>Hostname : "+memory.hostname+"</p>";
-message = message + "<p>http : "+memory.http_enable+"</p>";
-message = message + "<p>rtsp : "+memory.rtsp_enable+"</p>";
-message = message + "<p>rtsp port : "+memory.rtsp_port+"</p>";
-message = message + "<p>time before restart (seconds) : "+valeur+"</p>";
-message = message + "</body>";
-message = message + "</html>";
+message = message + "<p>password : "+memory.password+"</p>\n";
+message = message + "<p>Hostname : "+memory.hostname+"</p>\n";
+message = message + "<p>http : "+memory.http_enable+"</p>\n";
+message = message + "<p>rtsp : "+memory.rtsp_enable+"</p>\n";
+message = message + "<p>rtsp port : "+memory.rtsp_port+"</p>\n";
+message = message + "<p>time before restart (seconds) : "+valeur+"</p>\n";
+message += "<a class=\"button button-off\" href=\"/save\">SAVE</a>\n";
+message += "<a class=\"button button-off\" href=\"/restrat\">RESTART</a>\n";
+message = message + "</h3></body>\n";
+message = message + "</html>\n";
 server.send(200,"text/html",message);
 }
  
 void http_Config_Portal()
 {
   server.on("/",handleRoot);
+  server.on("/restart",handleRESTART);
+  server.on("/save",handleSAVE);
   server.onNotFound(handleNotFound);
+
   server.begin();
   Serial.println("Serveur web actif!");
   previousMillis=millis();
@@ -403,6 +444,8 @@ void loop() {
   //ArduinoOTA.handle();
   button.tick();
   server.handleClient();
+
+  // Check if Config Portal open
   if (((previousMillis+TIME_CONFIG_PORTAL)<millis()) and (http_Config_Portal_activ))
     {
       Serial.println("time ended, ESP32 Restart");
