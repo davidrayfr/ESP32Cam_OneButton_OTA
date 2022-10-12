@@ -36,8 +36,8 @@ int ledBright=0;
 #define TIME_AFTER_LONG_CLICK 2000 // Detection second click after long clic (seconds)
 #define TIME_BLINK 100 // Time - Frequency blink for Led in MilliSecond
 
-const int AMPLITUDE_MAX_LED=255; // Amplitude Max LED 
-const int COEF=10;
+const int AMPLITUDE_MAX_LED=200; // Amplitude Max LED 
+const int COEF=20; // COEF Evolution Pulse 1 Tres lent 20 Rapide
 
 int longClickId = false;
 int pulseFlag=false; // pulseFlag=flase -> Blink pulseFlag= True
@@ -46,7 +46,8 @@ unsigned long pressStartTime;
 bool http_Config_Portal_activ=false;
 
 // declaration in advance
-void http_Config_Portal();
+void http_Config_Portal_Start();
+void http_Config_Portal_Closure();
 
 // Setup a new OneButton on pin PIN_INPUT
 // The 2. parameter activeLOW is true, because external wiring sets the button to LOW when pressed.
@@ -139,13 +140,12 @@ if (longClickId) {
   }
  else
   {
-  // Lancement du portail
-  timerAlarmEnable(My_timer);
-  pulseFlag=true;
-  http_Config_Portal();
-  // Record time launch
-  previousMillis=millis();
+  if(http_Config_Portal_activ)    
+    http_Config_Portal_Start();
+    else
+    http_Config_Portal_Closure();
   }
+
 }
 
 // Long press detected
@@ -192,7 +192,6 @@ void button_reset()
 {
 
 }
-
 
 void handle_jpg_stream(void)
 {
@@ -265,16 +264,17 @@ void handleSAVE()
 void handleRoot()
 {
 char valeur[20];
-itoa((millis()-previousMillis),valeur,10);
+itoa((previousMillis+TIME_CONFIG_PORTAL-millis())/1000,valeur,10);
 String message="<!DOCTYPE html>";
 message +="<html lang='f'>";
 message +="<head>\n";
 message +="<title>CONFIGURATION ESP32-CAM</title>\n";
-message +="<meta http-equiv='refresh' content='60' name='viewport' content='width=device-width, initial-scale=1' charset='UTF-8'/>\n";
+message +="<meta http-equiv='refresh' content='3' name='viewport' content='width=device-width, initial-scale=1' charset='UTF-8'/>\n";
 message +="</head>\n";
 message +="<body lang='fr'>\n";
 message +="<h1>Configuration ESP32-CAM</h1>\n";
 message +="<h3> Access Point\n";
+message = message + "<p>IP   : "+WiFi.localIP().toString()+"</p>";
 message = message + "<p>WiFi : "+memory.ssid+"</p>";
 message = message + "<p>password : "+memory.password+"</p>\n";
 message = message + "<p>Hostname : "+memory.hostname+"</p>\n";
@@ -282,24 +282,37 @@ message = message + "<p>http : "+memory.http_enable+"</p>\n";
 message = message + "<p>rtsp : "+memory.rtsp_enable+"</p>\n";
 message = message + "<p>rtsp port : "+memory.rtsp_port+"</p>\n";
 message = message + "<p>time before restart (seconds) : "+valeur+"</p>\n";
+message += "echo 'Date et heure actuelle : date (\"d/m/Y H:i\")";
 message += "<a class=\"button button-off\" href=\"/save\">SAVE</a>\n";
-message += "<a class=\"button button-off\" href=\"/restrat\">RESTART</a>\n";
+message += "<a class=\"button button-off\" href=\"/restart\">RESTART</a>\n";
 message = message + "</h3></body>\n";
 message = message + "</html>\n";
 server.send(200,"text/html",message);
 }
  
-void http_Config_Portal()
+void http_Config_Portal_Start()
 {
+  previousMillis=millis();
+  timerAlarmEnable(My_timer);
+  pulseFlag=true;
   server.on("/",handleRoot);
   server.on("/restart",handleRESTART);
   server.on("/save",handleSAVE);
   server.onNotFound(handleNotFound);
-
   server.begin();
   Serial.println("Serveur web actif!");
   previousMillis=millis();
   http_Config_Portal_activ=true;
+}
+
+void http_Config_Portal_Closure()
+{
+  http_Config_Portal_activ=false;
+  timerAlarmDisable(My_timer);
+  ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%) 
+  Serial.println("time ended / http Portal Closure");
+  delay(2000);
+  server.close();
 }
 
 CStreamer *streamer;
@@ -447,10 +460,6 @@ void loop() {
 
   // Check if Config Portal open
   if (((previousMillis+TIME_CONFIG_PORTAL)<millis()) and (http_Config_Portal_activ))
-    {
-      Serial.println("time ended, ESP32 Restart");
-      delay(2000);
-      ESP.restart();
-    }
+    http_Config_Portal_Closure();
   //rtsp_Stream_Server();
 }
