@@ -33,7 +33,7 @@ int ledBright=0;
 // Data Regarding Button Management
 #define TIME_LONG_CLICK_DETECTION 5000 // Detection Tps Mini long clic in Millisecondes
 #define TIME_LONG_CLICK_START 1000 // Detection start Long Click (seconds)
-#define TIME_AFTER_LONG_CLICK 2000 // Detection second click after long clic (seconds)
+#define TIME_AFTER_LONG_CLICK 5000 // Detection second click after long clic (seconds)
 #define TIME_BLINK 100 // Time - Frequency blink for Led in MilliSecond
 
 const int AMPLITUDE_MAX_LED=200; // Amplitude Max LED 
@@ -117,10 +117,10 @@ void IRAM_ATTR onTimer() {
 
 void doubleClick()
 {
-Serial.println("Double Click detected > Clignotement LED BLANCHE");
+Serial.println("Double Click detected > RESTART");
 // Blink launch
-pulseFlag=false;
-timerAlarmEnable(My_timer);
+delay(2000);
+ESP.restart();
 }
 
 void simpleClick()
@@ -141,9 +141,9 @@ if (longClickId) {
  else
   {
   if(http_Config_Portal_activ)    
-    http_Config_Portal_Start();
-    else
     http_Config_Portal_Closure();
+    else
+    http_Config_Portal_Start();
   }
 
 }
@@ -461,5 +461,13 @@ void loop() {
   // Check if Config Portal open
   if (((previousMillis+TIME_CONFIG_PORTAL)<millis()) and (http_Config_Portal_activ))
     http_Config_Portal_Closure();
+  if (((previousMillis+TIME_AFTER_LONG_CLICK)<millis())and (longClickId))
+  {
+  longClickId=false;
+  timerAlarmDisable(My_timer);
+  ledcWrite(canalPWM, 0);   //  LED blanche éteinte (rapport cyclique 0%) 
+  Serial.println("time ended / long clic not anymore valid");
+  delay(1000);
+  }
   //rtsp_Stream_Server();
 }
